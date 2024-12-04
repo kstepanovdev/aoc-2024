@@ -10,7 +10,7 @@ pub enum Direction {
 }
 
 fn main() {
-    // println!("Part 1: {}", part_1());
+    println!("Part 1: {}", part_1());
     println!("Part 2: {}", part_2());
 }
 
@@ -36,30 +36,28 @@ fn part_1() -> i32 {
                 match direction {
                     Direction::Horizontal => {
                         if col + KEY.len() <= puzzle[0].len() {
-                            for k in 0..KEY.len() {
-                                key.push(puzzle[row][col + k]);
-                            }
+                            key = puzzle[row][col..col + KEY.len()].iter().collect::<String>();
                         }
                     }
                     Direction::Vertical => {
                         if row + KEY.len() <= puzzle.len() {
-                            for k in 0..KEY.len() {
-                                key.push(puzzle[row + k][col]);
-                            }
+                            key = (row..row + KEY.len())
+                                .map(|r| puzzle[r][col])
+                                .collect::<String>();
                         }
                     }
                     Direction::DiagonalRightUp => {
                         if row + 1 >= KEY.len() && col + KEY.len() <= puzzle.len() {
-                            for k in 0..KEY.len() {
-                                key.push(puzzle[row - k][col + k]);
-                            }
+                            key = (0..KEY.len())
+                                .map(|k| puzzle[row - k][col + k])
+                                .collect::<String>();
                         }
                     }
                     Direction::DiagonalRightDown => {
                         if col + KEY.len() <= puzzle[0].len() && row + KEY.len() <= puzzle.len() {
-                            for k in 0..KEY.len() {
-                                key.push(puzzle[row + k][col + k]);
-                            }
+                            key = (0..KEY.len())
+                                .map(|k| puzzle[row + k][col + k])
+                                .collect::<String>();
                         }
                     }
                 };
@@ -74,8 +72,6 @@ fn part_1() -> i32 {
 }
 
 fn part_2() -> i32 {
-    let directions = vec![Direction::DiagonalRightUp, Direction::DiagonalRightDown];
-
     let mut encounters = 0;
     let puzzle = read_to_string("input")
         .unwrap()
@@ -86,12 +82,14 @@ fn part_2() -> i32 {
     for row in 0..puzzle.len() {
         for col in 0..puzzle[0].len() {
             let mut cross = [false, false];
-            for (idx, direction) in directions.iter().enumerate() {
+            for (idx, direction) in [Direction::DiagonalRightUp, Direction::DiagonalRightDown]
+                .iter()
+                .enumerate()
+            {
                 let mut key = vec![];
                 if puzzle[row][col] != 'A' {
                     continue;
                 }
-
                 if !(row > 0 && col > 0 && row + 1 < puzzle.len() && col + 1 < puzzle.len()) {
                     continue;
                 }
