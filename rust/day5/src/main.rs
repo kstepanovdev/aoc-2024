@@ -5,7 +5,6 @@ use std::{
 
 fn main() {
     println!("Part 1: {}", part_1());
-    // println!("Part 2: {}", part_2());
 }
 
 fn part_1() -> i32 {
@@ -27,40 +26,31 @@ fn part_1() -> i32 {
         }
     }
 
-    'outer: for pages in file[1]
+    let all_pages = file[1]
         .lines()
         .map(|line| {
             line.split(',')
                 .map(|x| x.parse::<i32>().unwrap())
                 .collect::<Vec<i32>>()
         })
-        .collect::<Vec<Vec<i32>>>()
-    {
+        .collect::<Vec<Vec<i32>>>();
+
+    for pages in all_pages {
+        let mut valid = true;
         let mut passed_values = HashSet::new();
         for page in &pages {
-            let forbidden_pages = rules.get(&page);
-
-            match forbidden_pages {
-                Some(forbidden_pages) => {
-                    if passed_values.intersection(forbidden_pages).count() == 0 {
-                        passed_values.insert(*page);
-                    } else {
-                        break 'outer;
-                    }
-                }
-                None => {
-                    passed_values.insert(*page);
+            if let Some(forbidden_pages) = rules.get(&page) {
+                if let Some(_) = passed_values.intersection(forbidden_pages).next() {
+                    valid = false;
+                    break;
                 }
             }
+            passed_values.insert(*page);
         }
-
-        result += pages[pages.len() / 2];
-        println!("{:?}", pages);
+        if valid {
+            result += pages[pages.len() / 2];
+        }
     }
 
     result
-}
-
-fn part_2() -> i32 {
-    todo!()
 }
