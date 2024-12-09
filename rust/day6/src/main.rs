@@ -7,14 +7,14 @@ fn main() {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum MapElements {
-    Guard,
     Obstacle,
     Visited(Direction),
     Empty,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub enum Direction {
+    #[default]
     Up,
     Down,
     Left,
@@ -32,78 +32,107 @@ impl Direction {
     }
 }
 
-fn step(
-    direction: Direction,
-    curr_guard_coords: (usize, usize),
-    map: &[Vec<MapElements>],
-) -> Option<(usize, usize)> {
-    let (row, col) = curr_guard_coords;
-    if row == 0 && direction == Direction::Up {
-        return None;
-    }
-    if row == map.len() - 1 && direction == Direction::Down {
-        return None;
-    }
-    if col == 0 && direction == Direction::Left {
-        return None;
-    }
-    if col == map[0].len() - 1 && direction == Direction::Right {
-        return None;
-    }
-
-    let new_coords = match direction {
-        Direction::Up => (row - 1, col),
-        Direction::Down => (row + 1, col),
-        Direction::Left => (row, col - 1),
-        Direction::Right => (row, col + 1),
-    };
-    Some(new_coords)
+#[derive(Debug, Default, Clone)]
+pub struct GameState {
+    map: Vec<Vec<MapElements>>,
+    curr_direction: Direction,
+    guard_coords: (usize, usize),
 }
 
-fn part_1() -> i32 {
-    let mut map = vec![];
-    let mut curr_direction = Direction::Up;
-    let mut guard_coords = (0, 0);
-    let mut visited_spots = 0;
+impl GameState {
+    fn step(&self) -> Option<(usize, usize)> {
+        let (row, col) = self.guard_coords;
+        if row == 0 && self.curr_direction == Direction::Up {
+            return None;
+        }
+        if row == self.map.len() - 1 && self.curr_direction == Direction::Down {
+            return None;
+        }
+        if col == 0 && self.curr_direction == Direction::Left {
+            return None;
+        }
+        if col == self.map[0].len() - 1 && self.curr_direction == Direction::Right {
+            return None;
+        }
 
-    for (row, line) in read_to_string("input").unwrap().lines().enumerate() {
-        map.push(vec![]);
+        let new_coords = match self.curr_direction {
+            Direction::Up => (row - 1, col),
+            Direction::Down => (row + 1, col),
+            Direction::Left => (row, col - 1),
+            Direction::Right => (row, col + 1),
+        };
+        Some(new_coords)
+    }
+
+    pub fn is_looped(mut self) -> bool {
+        loop {
+            let Some((new_row, new_col)) = self.step() else {
+                break;
+            };
+
+            match self.map[new_row][new_col] {
+                MapElements::Obstacle => {
+                    self.curr_direction = self.curr_direction.turn_right();
+                }
+                MapElements::Visited(direction) => {
+                    if direction == self.curr_direction {
+                        return true;
+                    }
+
+                    self.guard_coords = (new_row, new_col);
+                }
+                MapElements::Empty => {
+                    self.map[new_row][new_col] = MapElements::Visited(self.curr_direction);
+                    self.guard_coords = (new_row, new_col);
+                }
+            }
+        }
+
+        false
+    }
+}
+
+fn parse_input(input_file: &str) -> GameState {
+    let mut game_state = GameState::default();
+
+    for (row, line) in read_to_string(input_file).unwrap().lines().enumerate() {
+        game_state.map.push(vec![]);
         for (col, spot) in line.chars().enumerate() {
             match spot {
-                '#' => map[row].push(MapElements::Obstacle),
-                '.' => map[row].push(MapElements::Empty),
+                '#' => game_state.map[row].push(MapElements::Obstacle),
+                '.' => game_state.map[row].push(MapElements::Empty),
                 '^' => {
-                    map[row].push(MapElements::Guard);
-                    guard_coords = (row, col);
+                    game_state.map[row].push(MapElements::Visited(Direction::Up));
+                    game_state.guard_coords = (row, col);
                 }
                 _ => (),
             }
         }
     }
+    game_state
+}
+
+fn part_1() -> i32 {
+    let mut visited_spots = 0;
+    let mut game_state = parse_input("input");
 
     loop {
-        let (prev_row, prev_col) = guard_coords;
-        let Some((new_row, new_col)) = step(curr_direction, guard_coords, &map) else {
+        let Some((new_row, new_col)) = game_state.step() else {
             break;
         };
 
-        match map[new_row][new_col] {
-            MapElements::Guard => {
-                unreachable!("Guard found at: ({}, {})", new_row, new_col);
-            }
+        match game_state.map[new_row][new_col] {
             MapElements::Obstacle => {
-                curr_direction = curr_direction.turn_right();
+                game_state.curr_direction = game_state.curr_direction.turn_right();
             }
             MapElements::Visited(_) => {
-                map[new_row][new_col] = MapElements::Guard;
-                map[prev_row][prev_col] = MapElements::Visited(curr_direction);
-                guard_coords = (new_row, new_col);
+                game_state.map[new_row][new_col] = MapElements::Visited(game_state.curr_direction);
+                game_state.guard_coords = (new_row, new_col);
             }
             MapElements::Empty => {
-                map[new_row][new_col] = MapElements::Guard;
-                map[prev_row][prev_col] = MapElements::Visited(curr_direction);
                 visited_spots += 1;
-                guard_coords = (new_row, new_col);
+                game_state.map[new_row][new_col] = MapElements::Visited(game_state.curr_direction);
+                game_state.guard_coords = (new_row, new_col);
             }
         }
     }
@@ -112,94 +141,41 @@ fn part_1() -> i32 {
 }
 
 fn part_2() -> i32 {
-    let mut map = vec![];
-    let mut curr_direction = Direction::Up;
-    let mut guard_coords = (0, 0);
+    let mut game_state = parse_input("input");
     let mut looped_count = 0;
 
-    for (row, line) in read_to_string("input").unwrap().lines().enumerate() {
-        map.push(vec![]);
-        for (col, spot) in line.chars().enumerate() {
-            match spot {
-                '#' => map[row].push(MapElements::Obstacle),
-                '.' => map[row].push(MapElements::Empty),
-                '^' => {
-                    map[row].push(MapElements::Visited(Direction::Up));
-                    guard_coords = (row, col);
-                }
-                _ => (),
-            }
-        }
-    }
-
     loop {
-        let Some((new_row, new_col)) = step(curr_direction, guard_coords, &map) else {
+        let Some((new_row, new_col)) = game_state.step() else {
             break;
         };
 
-        match map[new_row][new_col].clone() {
-            MapElements::Guard => {
-                unreachable!("Guard found at: ({}, {})", new_row, new_col);
-            }
+        match game_state.map[new_row][new_col].clone() {
             MapElements::Obstacle => {
-                curr_direction = curr_direction.turn_right();
+                game_state.curr_direction = game_state.curr_direction.turn_right();
             }
             MapElements::Visited(direction) => {
-                if direction == curr_direction {
+                if direction == game_state.curr_direction {
                     looped_count += 1;
                     break;
                 }
 
-                guard_coords = (new_row, new_col);
+                game_state.guard_coords = (new_row, new_col);
             }
             MapElements::Empty => {
                 {
-                    let mut cloned_map = map.clone();
-                    cloned_map[new_row][new_col] = MapElements::Obstacle;
-                    if is_looped(cloned_map, guard_coords, curr_direction) {
+                    let mut game_state = game_state.clone();
+                    game_state.map[new_row][new_col] = MapElements::Obstacle;
+
+                    if game_state.is_looped() {
                         looped_count += 1;
                     }
                 }
 
-                map[new_row][new_col] = MapElements::Visited(curr_direction);
-                guard_coords = (new_row, new_col);
+                game_state.map[new_row][new_col] = MapElements::Visited(game_state.curr_direction);
+                game_state.guard_coords = (new_row, new_col);
             }
         }
     }
 
     looped_count
-}
-
-pub fn is_looped(
-    mut map: Vec<Vec<MapElements>>,
-    mut guard_coords: (usize, usize),
-    mut curr_direction: Direction,
-) -> bool {
-    loop {
-        let Some((new_row, new_col)) = step(curr_direction, guard_coords, &map) else {
-            break;
-        };
-
-        match map[new_row][new_col].clone() {
-            MapElements::Guard => {
-                unreachable!("Guard found at: ({}, {})", new_row, new_col);
-            }
-            MapElements::Obstacle => {
-                curr_direction = curr_direction.turn_right();
-            }
-            MapElements::Visited(direction) => {
-                if direction == curr_direction {
-                    return true;
-                }
-
-                guard_coords = (new_row, new_col);
-            }
-            MapElements::Empty => {
-                map[new_row][new_col] = MapElements::Visited(curr_direction);
-                guard_coords = (new_row, new_col);
-            }
-        }
-    }
-
-    false
 }
